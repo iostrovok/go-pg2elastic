@@ -17,8 +17,8 @@ const (
 	hostDef    = "127.0.0.1"
 	portDef    = "5432"
 	sslModeDef = "disable"
-	loginDef   = "lashko"
-	passDef    = "lashko"
+	loginDef   = "test"
+	passDef    = "test"
 	dbNameDef  = "test"
 )
 

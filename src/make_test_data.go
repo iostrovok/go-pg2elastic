@@ -11,7 +11,8 @@ import (
 )
 
 const (
-	countTestProducts = 1000000
+	countTestProducts = 999
+	countMaxOffer     = 5
 
 	productsSql = "INSERT INTO products(title) VALUES ($1) RETURNING id"
 	offersSql   = "INSERT INTO offers(title, products_id) VALUES ($1, $2)"
@@ -73,7 +74,7 @@ func load_test_data(dbmap *gorp.DbMap, count int) {
 		}
 
 		line := fmt.Sprintf("%d. lastInsertId: %d\n", count, lastProductsId)
-		countOffers := rand.Intn(100)
+		countOffers := rand.Intn(countMaxOffer)
 		for countOffers > 0 {
 			countOffers--
 			title := randString()

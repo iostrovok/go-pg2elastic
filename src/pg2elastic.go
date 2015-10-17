@@ -12,7 +12,7 @@ import (
 
 // limitReadOneTime is count of reading from DB for one time
 // If you have problem with postgresql performance you need to decrease it.
-const limitReadOneTime = 100
+const limitReadOneTime = 10
 
 func main() {
 
@@ -20,31 +20,15 @@ func main() {
 
 	// Start manager
 	toElasticCh := make(chan dbstruct.Row, 1)
-	rowCh := make(chan dbstruct.Row, 1)
-	manager.Start(toElasticCh, rowCh)
+	rowsCh := make(chan []dbstruct.Row, 1)
+	manager.Start(toElasticCh, rowsCh)
 
 	// Start saving to elasticserach
 	finishElasticSaveCh := save2elastic.Start(toElasticCh)
 
 	// Start reading from DB
-	rowsCh := iterator.ReadAll(dbmap, limitReadOneTime)
-	readDBtoMAnager(rowCh, rowsCh)
-	close(rowCh)
+	iterator.ReadAll(dbmap, rowsCh, limitReadOneTime)
 
 	// wait while elasticsearch are getting data
 	<-finishElasticSaveCh
-}
-
-func readDBtoMAnager(rowCh chan dbstruct.Row, rowsCh chan []dbstruct.Row) {
-	for {
-		select {
-		case rows, ok := <-rowsCh:
-			if !ok {
-				return
-			}
-			for _, oneRow := range rows {
-				rowCh <- oneRow
-			}
-		}
-	}
 }

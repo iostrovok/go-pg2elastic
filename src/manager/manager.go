@@ -12,22 +12,25 @@ import (
 )
 
 const (
-	checkTTL = 1 * time.Second
+	checkTTL = 2 * time.Second
 )
 
 var sleepLock = &sync.RWMutex{}
 
-func Start(toElasticCh, rowCh chan dbstruct.Row) {
+func Start(toElasticCh chan dbstruct.Row, rowsCh chan []dbstruct.Row) {
 	stopSleepCh := make(chan bool, 1)
-	go fromDBtoElastic(toElasticCh, rowCh, stopSleepCh)
+	go fromDBtoElastic(toElasticCh, rowsCh, stopSleepCh)
 	go SleepTime(stopSleepCh)
 }
 
-func fromDBtoElastic(toElasticCh, rowCh chan dbstruct.Row, stopSleepCh chan bool) {
-	for row := range rowCh {
-		sleepLock.RLock()
-		toElasticCh <- row
-		sleepLock.RUnlock()
+func fromDBtoElastic(toElasticCh chan dbstruct.Row, rowsCh chan []dbstruct.Row, stopSleepCh chan bool) {
+
+	for rows := range rowsCh {
+		for _, oneRow := range rows {
+			sleepLock.RLock()
+			toElasticCh <- oneRow
+			sleepLock.RUnlock()
+		}
 	}
 	close(toElasticCh)
 
@@ -51,13 +54,13 @@ func SleepTime(stopSleepCh chan bool) {
 	for {
 		select {
 		case <-tiker:
-			elastciNow := is_elastic_claster_good()
+			elastciNow := is_elastic_cluster_good()
 			if !elastciNow && !state {
 				sleepLock.Lock()
 				state = true
-				log.Println("waiting good conditions of elasticsearch")
+				log.Printf("[%s] waiting good conditions of elasticsearch\n", time.Now().Format("2006-01-02T15:04:05.999999999"))
 			} else if elastciNow && state {
-				log.Println("elasticsearch can get records")
+				log.Printf("[%s] elasticsearch can get records\n", time.Now().Format("2006-01-02T15:04:05.999999999"))
 				sleepLock.Unlock()
 				state = false
 			}
@@ -70,8 +73,13 @@ func SleepTime(stopSleepCh chan bool) {
 }
 
 // imitation of check condition of  elasticsearch cluster
-func is_elastic_claster_good() bool {
-	if rand.Intn(100) > 50 {
+func is_elastic_cluster_good() bool {
+	/*
+		If we need to check state of elastic cluster
+		we can send "http://elastic:9200/_cluster/health" or
+		"http://elastic:9200/_cat/indices" and parse the answer.
+	*/
+	if rand.Intn(100) > 10 {
 		return true
 	}
 	return false

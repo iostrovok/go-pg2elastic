@@ -10,39 +10,59 @@ import (
 )
 
 const (
-	Limit = 1000
+	SqlFull = `
+SELECT 
+	products.id as products_id, products.title as products_title,
+	COALESCE(offers.id, 0) as offers_id, COALESCE(offers.title, '') as offers_title 
+FROM products LEFT JOIN offers ON offers.products_id = products.id
+WHERE $1 < products.id AND products.id <= $2
+ORDER by products
+`
+
+	SqlProductId = `
+SELECT products.id FROM products 
+WHERE products.id > $1 ORDER BY products.id LIMIT 1 OFFSET $2
+`
 )
 
-func ReadAll(dbmap *gorp.DbMap, limit int) chan []dbstruct.Row {
-	result := make(chan []dbstruct.Row, 1)
-	go _readAll(dbmap, limit, result)
-	return result
+func ReadAll(dbmap *gorp.DbMap, result chan []dbstruct.Row, limit int64) {
+	go _readAll(dbmap, result, limit)
 }
 
-func _readAll(dbmap *gorp.DbMap, limit int, result chan []dbstruct.Row) {
-	lastPoductsID := 0
-	lastOffersID := 0
+func _readAll(dbmap *gorp.DbMap, result chan []dbstruct.Row, limit int64) {
+	var lastPoductsID int64 = 0
+	var lastIter bool = false
+
+	defer close(result)
 
 	for {
 		var rows []dbstruct.Row
 
-		_, err := dbmap.Select(&rows, dbstruct.SqlLine, lastPoductsID, lastPoductsID, lastOffersID, limit)
+		// Get
+		nextPoductsID, err := dbmap.SelectInt(SqlProductId, lastPoductsID, limit)
 		if err != nil {
 			log.Println(err)
-			close(result)
 			return
 		}
 
-		if len(rows) == 0 {
-			close(result)
+		// we have to read last rows
+		if nextPoductsID == 0 {
+			nextPoductsID = lastPoductsID + limit
+		}
+
+		_, err = dbmap.Select(&rows, SqlFull, lastPoductsID, nextPoductsID)
+		if err != nil {
+			log.Println(err)
 			return
 		}
 
-		lastPoductsID = rows[len(rows)-1].PoductsID
-		lastOffersID = rows[len(rows)-1].OffersID
+		if len(rows) == 0 || lastIter {
+			log.Println(err)
+			return
+		}
+
+		lastPoductsID = nextPoductsID
 
 		result <- rows
 	}
-
-	close(result)
 }
